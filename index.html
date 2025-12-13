@@ -1,281 +1,1720 @@
 
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Straddle Option Calculator</title>
-    <style>
-        body {
-            font-family: 'Arial', sans-serif;
-            background: white;
-            margin: 0;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-            background: white;
-            text-align: center;
-        }
-
-        h1 {
-            font-size: 24px;
-            color: #007bff;
-            margin-bottom: 10px;
-        }
-
-        .row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 10px;
-        }
-
-        .row input {
-            width: 31%;
-            padding: 8px;
-            font-size: 14px;
-            border: 2px solid #007bff;
-            border-radius: 5px;
-            margin: 5px 0;
-            outline: none;
-        }
-
-        .row input:focus {
-            border-color: #007bff;
-            box-shadow: 0 0 5px rgba(0, 121, 107, 0.3);
-        }
-
-        .row button {
-            width: 31%;
-            padding: 8px 12px;
-            font-size: 14px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            margin: 5px 0;
-            transition: background-color 0.3s;
-        }
-
-        .row button:hover {
-            background-color: black;
-        }
-
-        .output {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 15px;
-        }
-
-        .output output {
-            width: 31%;
-            padding: 10px;
-            font-size: 14px;
-            background-color: #e1f5fe;
-            border: 2px solid #0288d1;
-            border-radius: 5px;
-            margin: 5px 0;
-            color: #0288d1;
-        }
-
-        #tradeDecision {
-            margin-top: 20px;
-            padding: 12px;
-            font-size: 14px;
-            font-weight: bold;
-            border-radius: 8px;
-            color: white;
-            text-align: center;
-        }
-
-        #tradeDecision.good {
-            background-color: #388e3c;
-        }
-
-        #tradeDecision.caution {
-            background-color: #ff9800;
-        }
-
-        #tradeDecision.bad {
-            background-color: #e53935;
-        }
-
-        .trade-icon {
-            margin-right: 10px;
-        }
-
-        .disclaimer {
-            font-size: 14px;
-            color: #757575;
-            margin-top: 20px;
-            text-align: center;
-        }
-
-        .disclaimer a {
-            color: #0288d1;
-            text-decoration: none;
-        }
-
-        .disclaimer a:hover {
-            text-decoration: underline;
-        }
-    </style>
-    <script>
-        function calculateStraddle() {
-            let callPremium = parseFloat(document.getElementById("callPremium").value) || 0;
-            let putPremium = parseFloat(document.getElementById("putPremium").value) || 0;
-            let strikePrice = parseFloat(document.getElementById("strikePrice").value) || 0;
-            let lotSize = parseFloat(document.getElementById("lotSize").value) || 1;
-            let callIV = parseFloat(document.getElementById("callIV").value) || 0;
-            let putIV = parseFloat(document.getElementById("putIV").value) || 0;
-            let expiryDate = document.getElementById("expiryDate").value || "";
-            
-            let currentDate = new Date();
-            let expiry = new Date(expiryDate);
-            let timeDifference = expiry - currentDate;
-            let daysToExpiry = Math.ceil(timeDifference / (1000 * 3600 * 24)); // Convert milliseconds to days
-
-            let totalCost = (callPremium + putPremium) * lotSize;
-            let upperBreakeven = strikePrice + (callPremium + putPremium);
-            let lowerBreakeven = strikePrice - (callPremium + putPremium);
-            let maxProfit = "Unlimited";
-            let maxLoss = totalCost;
-            let expectedMove = ((callPremium + putPremium) / strikePrice) * 100;
-
-            // Calculate Straddle Premium (call premium + put premium)
-            let straddlePremium = callPremium + putPremium;
-
-            // Calculate Probability of Profit
-            let callPOP = (1 - (callIV / 100)); // Simple estimate based on IV for call option
-            let putPOP = (1 - (putIV / 100)); // Simple estimate based on IV for put option
-            let probabilityOfProfit = Math.min(callPOP, putPOP) * 100;
-
-            // Displaying the calculated values
-            document.getElementById("totalCost").textContent = `Total Cost: ₹${totalCost.toFixed(2)}`;
-            document.getElementById("upperBreakeven").textContent = `Upper Breakeven: ₹${upperBreakeven.toFixed(2)}`;
-            document.getElementById("lowerBreakeven").textContent = `Lower Breakeven: ₹${lowerBreakeven.toFixed(2)}`;
-            document.getElementById("maxProfit").textContent = `Max Profit: ${maxProfit}`;
-            document.getElementById("maxLoss").textContent = `Max Loss: ₹${maxLoss.toFixed(2)}`;
-            document.getElementById("expectedMove").textContent = `Expected Move: ${expectedMove.toFixed(2)}%`;
-            document.getElementById("expiryDateOutput").textContent = `Days to Expiry: ${daysToExpiry}`;
-            document.getElementById("straddlePremium").textContent = `Straddle Premium: ₹${straddlePremium.toFixed(2)}`;
-            document.getElementById("probabilityOfProfit").textContent = `Probability %: ${probabilityOfProfit.toFixed(2)}%`;
-
-            let tradeDecision = document.getElementById("tradeDecision");
-            tradeDecision.style.color = "#fff";
-
-            if (expectedMove < 5 || (callIV < 15 && putIV < 15)) {
-                tradeDecision.innerHTML = `<span class="trade-icon">❌</span>Avoid (Low Expected Move or Low IV): The market may not move enough for a profitable trade. Both the expected market movement (Expected Move) and the implied volatility (IV) are too low. This means your options might not increase in value enough to cover the costs of the trade. It’s best to avoid entering a straddle trade in this scenario.`;
-                tradeDecision.className = "bad";
-            } else if (totalCost < (upperBreakeven - lowerBreakeven) / 2) {
-                tradeDecision.innerHTML = `<span class="trade-icon">✅</span>Good Straddle Setup (Favorable Risk-Reward): This is a good setup for a straddle trade. You’re paying a reasonable premium for both call and put options, and the market has enough movement potential (Expected Move is high). The IV supports the trade, meaning you have a good chance of profit if the market moves as expected.`;
-                tradeDecision.className = "good";
-            } else {
-                tradeDecision.innerHTML = `<span class="trade-icon">⚠️</span>Caution (Overpriced Straddle): This trade setup might be overpriced. Although there’s some potential, the cost of entering the straddle might be too high compared to the potential for profit. It’s important to be cautious and check if the premiums are inflated due to high implied volatility or overreaction in the market.`;
-                tradeDecision.className = "caution";
-            }
-        }
-
-        function resetCalculator() {
-            document.querySelectorAll("input").forEach(input => input.value = "");
-            let outputs = document.querySelectorAll("output");
-            outputs.forEach(output => {
-                // Preserve the caption text by setting default content
-                if (output.id === "straddlePremium") output.textContent = "Straddle Premium: ";
-                if (output.id === "upperBreakeven") output.textContent = "Upper Breakeven: ";
-                if (output.id === "lowerBreakeven") output.textContent = "Lower Breakeven: ";
-                if (output.id === "maxProfit") output.textContent = "Max Profit: ";
-                if (output.id === "maxLoss") output.textContent = "Max Loss: ";
-                if (output.id === "expectedMove") output.textContent = "Expected Move: ";
-                if (output.id === "expiryDateOutput") output.textContent = "Days to Expiry: ";
-                if (output.id === "totalCost") output.textContent = "Total Cost: ";
-                if (output.id === "probabilityOfProfit") output.textContent = "Probability %: ";
-            });
-
-            let tradeDecision = document.getElementById("tradeDecision");
-            tradeDecision.textContent = "Trade Decision";
-            tradeDecision.className = "";
-        }
-    </script>
-</head>
-<body>
-    <div class="container">
-        <h1>Straddle Option Calculator</h1>
-
-        <!-- Row 1: Stock Name, Spot Price, and Strike Price -->
-        <div class="row">
-            <input type="text" id="stockName" placeholder="Stock Name" title="Enter the stock name">
-            <input type="number" id="spotPrice" placeholder="Spot Price" title="Enter the current stock price">
-            <input type="number" id="strikePrice" placeholder="Strike Price" title="Enter the strike price of the option">
-        </div>
-
-        <!-- Row 2: Lot Size, Call Premium, and Put Premium -->
-        <div class="row">
-            <input type="number" id="lotSize" placeholder="Lot Size" title="Enter the lot size of the options">
-            <input type="number" id="callPremium" placeholder="Call Premium" title="Enter the premium of the call option">
-            <input type="number" id="putPremium" placeholder="Put Premium" title="Enter the premium of the put option">
-        </div>
-
-        <!-- Row 3: Expiry Date, Call IV, and Put IV -->
-        <div class="row">
-            <input type="date" id="expiryDate" placeholder="Expiry Date" title="Enter the date the options expire">
-            <input type="number" id="callIV" placeholder="Call IV (%)" title="Implied Volatility for the Call option. Higher IV suggests higher potential price movement.">
-            <input type="number" id="putIV" placeholder="Put IV (%)" title="Implied Volatility for the Put option. Higher IV suggests higher potential price movement.">
-        </div>
-
-        <!-- Buttons for Calculate and Reset -->
-        <div class="row">
-            <button onclick="calculateStraddle()">Calculate</button>
-            <button onclick="resetCalculator()">Reset</button>
-        </div>
-
-        <!-- Output Results -->
-        <div class="output">
-            <output id="straddlePremium">Straddle Premium: </output>
-            <output id="upperBreakeven">Upper Breakeven: </output>
-            <output id="lowerBreakeven">Lower Breakeven: </output>
-        </div>
-        <div class="output">
-            <output id="maxProfit">Max Profit: </output>
-            <output id="maxLoss">Max Loss: </output>
-            <output id="expectedMove">Expected Move: </output>
-        </div>
-        <div class="output">
-            <output id="totalCost">Total Cost: </output>
-            <output id="probabilityOfProfit">Probability %: </output>
-            <output id="expiryDateOutput">Days to Expiry: </output>
-        </div>
-
-        <!-- Trade Decision Display -->
-        <div id="tradeDecision">
-            Trade Decision: The system analyzes the market setup and suggests the best course of action based on factors like cost, potential movement, and volatility.
-            <ul>
-                <li><strong>Avoid:</strong> If the market isn't expected to move enough, or the implied volatility is too low, avoid entering this trade.</li>
-                <li><strong>Good Setup:</strong> A favorable setup for a straddle trade, with reasonable premiums and good market movement potential.</li>
-                <li><strong>Caution:</strong> Be cautious as the trade might be overpriced due to high implied volatility or inflated premiums.</li>
-            </ul>
-        </div>
-
-        <!-- Disclaimer -->
-<div class="disclaimer">
-    <p><strong>Disclaimer:</strong></p>
-    <p>This calculator is provided for educational and informational purposes only. The information presented here is not intended to be, nor should it be construed as, investment or financial advice. The creator of this tool does not offer, endorse, or recommend any specific stocks, options, or trading strategies. Please consult a qualified financial advisor or professional before making any investment or trading decisions.</p>
-    <p><strong>Risk Disclosure:</strong> Trading in the stock market involves substantial risk and can result in significant losses. The use of this tool is at your own risk, and the creator is not responsible for any financial outcomes, whether gains or losses, resulting from the use of this information. We do not provide any Buy, Sell, or Target recommendations. Users are encouraged to conduct their own research and analysis before making any trading decisions.</p>
-    <p><strong>SEBI Compliance:</strong> This tool is not intended to offer any advice or recommendations regarding the buying or selling of securities. The content is solely for educational purposes. As per SEBI regulations, please consult a SEBI-registered research analyst for any investment advice.</p>
-</div>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>STWP — Strategy Panel</title>
 
 <style>
-    .disclaimer {
-        text-align: left; /* Ensures all text aligns to the left */
-        margin: 10px 0; /* Optional: Adds margin for spacing */
-    }
+*{
+    box-sizing: border-box;
+}
+
+/* GLOBAL */
+body{
+    font-family: Inter, system-ui, Segoe UI, Roboto, Helvetica, Arial;
+    background:#f5f6fa;
+    margin:20px;
+    color:#111;
+}
+
+h1{
+    font-size:20px;
+    font-weight:700;
+    margin-bottom:4px;
+}
+
+.muted{
+    color:#666;
+    font-size:12px;
+    margin-bottom:12px;
+}
+
+/* -------------- CLEAN UNIFORM INPUT ROW -------------- */
+.row{
+    display:flex;
+    gap:12px;                    /* controlled spacing */
+    align-items:flex-start;
+    justify-content:flex-start;  /* keep left aligned */
+    margin-bottom:10px;
+    flex-wrap:wrap;
+}
+
+/* FINAL uniform sizing for all input boxes */
+.box{
+    display:flex;
+    flex-direction:column;
+    flex: 0 0 160px;   /* HARD LOCK spacing */
+}
+
+label{
+    font-size:11px;
+    font-weight:600;
+    margin-bottom:2px;
+}
+
+/* FINAL uniform height + width for ALL inputs */
+input, select{
+    width:100%;
+    height:22px;          
+    padding:2px 6px;
+    border:1px solid #cfd3da;
+    border-radius:4px;
+    font-size:11px;
+    background:#fff;
+}
+
+/* Force file upload box to match same size */
+#csvfile{
+    width:100%;
+    height:22px;
+    padding:0 4px;
+    font-size:10px;
+}
+
+input[type="file"]{
+    font-size:11px;
+    line-height:20px;
+}
+
+/* -------------- BUTTONS -------------- */
+.strategy-box{
+    background:#fff;
+    padding:10px;
+    border-radius:10px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.05);
+    margin-top:10px;
+    margin-bottom:10px;
+}
+
+.strategy-btn{
+    padding:6px 14px;
+    border:0;
+    cursor:pointer;
+    border-radius:6px;
+    font-size:13px;
+    color:#fff;
+    background:#0d6efd;
+    font-weight:600;
+    margin-right:8px;
+}
+
+/* WhatsApp button */
+#waBtn{
+    background:#25D366;
+    color:#fff;
+    padding:6px 12px;
+    border-radius:6px;
+    border:0;
+    font-size:12px;
+    font-weight:600;
+    cursor:pointer;
+    display:none;
+}
+#waBtn:hover{ background:#1eb45a; }
+
+/* OUTPUT PANEL */
+#outputBox{
+    display:none;
+    background:#ffffff;
+    padding:12px 14px;
+    border-radius:8px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.10);
+    font-size:12px;
+    line-height:1.20;
+    border-left:3px solid #0d6efd;
+    margin-bottom:10px;
+}
+
+.output-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    column-gap:12px;
+    row-gap:4px;
+}
+
+.section-title{
+    font-weight:700;
+    margin:2px 0;
+    font-size:12px;
+}
+.stwp-disclaimer{
+  margin-top:40px;
+  padding:14px 16px;
+  font-size:11px;
+  line-height:1.5;
+  color:#555;
+  background:#ffffff;
+  border-top:1px solid #e0e3ea;
+}
 </style>
-    </div>
+</head>
+
+<body>
+
+<h1>STWP — Strategy Panel</h1>
+
+<!-- SINGLE ROW INPUTS -->
+<div class="row">
+
+<div class="box">
+<label>Upload CSV</label>
+<div style="height:22px; display:flex; align-items:center;">
+    <input id="csvfile" type="file" accept=".csv"/>
+</div>
+</div>
+
+<div class="box">
+<label>Select Symbol</label>
+<select id="symbolSelect"><option>-- No symbols loaded --</option></select>
+</div>
+
+<div class="box">
+<label>Spot</label>
+<input id="spotInput" type="number">
+</div>
+
+<div class="box">
+<label>Sentiment</label>
+<select id="sentimentInput">
+<option>Bullish</option>
+<option>Bearish</option>
+<option>Neutral</option>
+</select>
+</div>
+
+<div class="box">
+<label>Trend</label>
+<select id="trendInput">
+<option>Up</option>
+<option>Down</option>
+<option>Sideways</option>
+</select>
+</div>
+
+<div class="box">
+  <label>View</label>
+  <input id="viewBox" type="text" readonly style="font-weight:700; background:#eef1f6;">
+</div>
+
+</div>
+
+<div id="status" class="muted">No file uploaded yet.</div>
+
+<!-- STRATEGY BUTTON -->
+<div class="strategy-box">
+<button class="strategy-btn" onclick="strategySelect('CALL')">CALL</button>
+<button class="strategy-btn" style="background:#dc3545;" onclick="strategySelect('PUT')">PUT</button>
+<button class="strategy-btn" style="background:#6f42c1;" onclick="strategySelect('STRADDLE')">STRADDLE</button>
+<button class="strategy-btn" style="background:#198754;" onclick="strategySelect('STRANGLE')">STRANGLE</button>
+<button class="strategy-btn" style="background:#0dcaf0;" onclick="strategySelect('BULL_SPREAD')">BULL SPREAD</button>
+<button class="strategy-btn" style="background:#fd7e14;" onclick="strategySelect('BEAR_SPREAD')">BEAR SPREAD</button>
+<button class="strategy-btn" style="background:#20c997;" onclick="strategySelect('IRON_CONDOR')">IRON CONDOR</button>
+<button class="strategy-btn" style="background:#6c757d;" onclick="resetPanel()">RESET</button>
+
+
+</div>
+
+<!-- OUTPUT -->
+<div id="outputBox"></div>
+<button id="waBtn" onclick="exportWhatsApp()">Export WhatsApp Message</button>
+
+<script>
+
+let fullCSVRows = [];
+let spotColumnIndex = -1;
+
+/* ---------------------------------------------------------
+          BUILDUP HEAT BAR (10 COLOR BLOCKS)
+----------------------------------------------------------*/
+function buildHeatBar(oiChgP, sentiment) {
+
+const heat = Math.max(0, Math.min(100, (oiChgP / 60) * 100));
+
+const blocks = 10;
+const filled = Math.round((heat / 100) * blocks);
+
+let color = "🟧"; // neutral
+if (sentiment === "Bullish") color = "🟩";
+if (sentiment === "Bearish") color = "🟥";
+
+const empty = "⬜";
+
+return {
+bar: color.repeat(filled) + empty.repeat(blocks - filled),
+pct: Math.round(heat)
+};
+}
+
+/* CSV PARSER */
+function parseCSV(text){
+const rows=[]; let cur='', row=[], inQuotes=false;
+for(let i=0;i<text.length;i++){
+const ch=text[i], nxt=text[i+1];
+if(ch==='"'){ if(inQuotes && nxt==='"'){cur+='"';i++;continue;} inQuotes=!inQuotes;continue; }
+if(!inQuotes && (ch==='\n'||ch==='\r')){
+if(cur!==''||row.length){row.push(cur);rows.push(row);row=[];cur='';}
+if(ch==='\r'&&nxt==='\n')i++;
+continue;
+}
+if(!inQuotes && ch===','){row.push(cur);cur='';continue;}
+cur+=ch;
+}
+if(cur!==''||row.length){row.push(cur);rows.push(row);}
+return rows;
+}
+
+function mapHeader(headerRow){
+const cleaned=headerRow.map(h=> (h||'').toString().trim().replace(/[^a-z0-9]/gi,'').toLowerCase());
+return {
+getIndex(patterns){
+for(const p of patterns){
+const key=p.toLowerCase().replace(/[^a-z0-9]/gi,'');
+const idx=cleaned.findIndex(h=>h===key);
+if(idx>=0) return idx;
+}
+return -1;
+}
+};
+}
+
+document.getElementById('csvfile').addEventListener('change', e=>{
+const f=e.target.files?.[0];
+if(!f){document.getElementById('status').textContent="No file selected.";return;}
+
+const reader=new FileReader();
+reader.onload=ev=>{
+const rows=parseCSV(ev.target.result);
+fullCSVRows=rows;
+
+const header=rows[0].map(h=>h.trim());
+const mapper=mapHeader(header);
+
+spotColumnIndex = mapper.getIndex(['spot']);
+
+const symbols=[...new Set(rows.slice(1).map(r=> (r[0]||'').trim().toUpperCase()))].sort();
+const sel=document.getElementById('symbolSelect');
+
+sel.innerHTML='<option value="">-- Select --</option>';
+symbols.forEach(s=>{
+const op=document.createElement('option');
+op.value=s; op.textContent=s; sel.appendChild(op);
+});
+
+document.getElementById('status').textContent="Symbols loaded.";
+};
+reader.readAsText(f);
+});
+
+document.getElementById('symbolSelect').addEventListener('change',()=>{
+const selected=document.getElementById('symbolSelect').value;
+const spotInput=document.getElementById('spotInput');
+
+if(!selected){spotInput.value='';return;}
+
+for(let i=1;i<fullCSVRows.length;i++){
+const row=fullCSVRows[i];
+if((row[0]||'').trim().toUpperCase()===selected){
+spotInput.value=row[spotColumnIndex]||'';
+break;
+}
+}
+});
+
+// Clear View when symbol changes (prevents stale signals)
+document.getElementById('symbolSelect').addEventListener('change',()=>{
+
+  const symbol = document.getElementById('symbolSelect').value;
+  const spot   = parseFloat(document.getElementById('spotInput').value);
+  const sentiment = document.getElementById('sentimentInput').value;
+  const trend = document.getElementById('trendInput').value;
+
+  if(!symbol || !spot){
+    document.getElementById("viewBox").value = "";
+    return;
+  }
+
+  const view = autoComputeViewOnSymbolSelect(
+    symbol, spot, sentiment, trend
+  );
+
+  document.getElementById("viewBox").value = view || "NO VIEW";
+});
+
+/* HELPERS */
+function toNumber(v){
+if(v==null) return null;
+const s=String(v).replace(/,/g,'').trim();
+if(!s) return null;
+const n=parseFloat(s);
+return isNaN(n)?null:n;
+}
+
+/* GET CALL ROWS */
+function getCallRows(symbol){
+return fullCSVRows.slice(1).map(r=>({
+Symbol:(r[0]||"").trim(),
+Type:(r[1]||"").toUpperCase(),
+Strike:toNumber(r[2]),
+LTP:toNumber(r[3]),
+DayChg:toNumber(r[4]),
+Vol:toNumber(r[5]),
+VolChg:toNumber(r[6]),
+OI:toNumber(r[8]),
+OIChg:toNumber(r[9]),
+OIChgP:toNumber(r[10]),
+IV:toNumber(r[11]),
+IVChgP:toNumber(r[12]),
+Spot:toNumber(r[13]),
+Delta:toNumber(r[14]),
+Gamma:toNumber(r[15]),
+Rho:toNumber(r[16]),
+Theta:toNumber(r[17]),
+Vega:toNumber(r[18]),
+Buildup:(r[19]||"")
+}))
+.filter(r=> r.Symbol===symbol && (r.Type==="CE"||r.Type==="CALL"));
+}
+
+/* GET PUT ROWS */
+function getPutRows(symbol){
+return fullCSVRows.slice(1).map(r=>({
+Symbol:(r[0]||"").trim(),
+Type:(r[1]||"").toUpperCase(),
+Strike:toNumber(r[2]),
+LTP:toNumber(r[3]),
+DayChg:toNumber(r[4]),
+Vol:toNumber(r[5]),
+VolChg:toNumber(r[6]),
+OI:toNumber(r[8]),
+OIChg:toNumber(r[9]),
+OIChgP:toNumber(r[10]),
+IV:toNumber(r[11]),
+IVChgP:toNumber(r[12]),
+Spot:toNumber(r[13]),
+Delta:toNumber(r[14]),
+Gamma:toNumber(r[15]),
+Rho:toNumber(r[16]),
+Theta:toNumber(r[17]),
+Vega:toNumber(r[18]),
+Buildup:(r[19]||"")
+}))
+.filter(r=> r.Symbol===symbol && (r.Type==="PE"||r.Type==="PUT"));
+}
+
+/* CLOSEST STRIKE */
+function closestToSpot(list, spot){
+let best=list[0];
+let diff=Math.abs(list[0].Strike - spot);
+list.forEach(r=>{
+const d=Math.abs(r.Strike - spot);
+if(d<diff){diff=d;best=r;}
+});
+return best;
+}
+
+/* EDGE SCORE */
+function computeEdgeScore(row, atmStrike){
+const delta = Math.abs(row.Delta);
+const oi = row.OIChgP;
+const vol = row.VolChg;
+const iv = row.IV;
+const ivc = row.IVChgP;
+const strike=row.Strike;
+const buildup=String(row.Buildup||"").toLowerCase();
+
+let deltaComp=4;
+if(delta!=null){
+const dist=Math.abs(delta - 0.45);
+const norm=Math.max(0,1 - dist/0.45);
+deltaComp = 2 + norm*8;
+}
+
+function momentum(x){
+if(x==null) return 0;
+const c=Math.max(-30,Math.min(60,x));
+if(c<=0) return 0;
+return (c/60)*10;
+}
+
+const oiComp=momentum(oi);
+const volComp=momentum(vol);
+const oiVolComp=Math.min(10,(oiComp*0.6 + volComp*0.4));
+
+let buildRaw=0;
+if(buildup.includes("long build")) buildRaw+=3;
+if(buildup.includes("short cover")) buildRaw+=2;
+if(buildup.includes("short build")) buildRaw-=3;
+
+const buildupComp=Math.max(0,Math.min(10,5 + buildRaw*1.5));
+
+let ivComp=5;
+if(iv!=null){
+if(iv<15) ivComp-=1;
+else if(iv>35) ivComp-=2;
+}
+
+if(ivc!=null){
+if(ivc>5) ivComp+=2;
+else if(ivc<-5) ivComp-=2;
+}
+
+let atmComp=5;
+if(atmStrike!=null && strike!=null){
+const dist=Math.abs(strike - atmStrike);
+const maxDist=Math.max(1,atmStrike*0.05);
+const norm=Math.max(0,1 - dist/maxDist);
+atmComp = 2 + norm*8;
+}
+
+return deltaComp*0.30 + oiVolComp*0.30 + buildupComp*0.20 + ivComp*0.10 + atmComp*0.10;
+}
+
+function decideBestView(context){
+
+const {
+  trend, sentiment,
+  ivAvg, expMovePct,
+  totalPremPct,
+  netDelta
+} = context;
+
+// Safety
+if(ivAvg == null || expMovePct == null){
+  return "DATA INSUFFICIENT";
+}
+
+// ===============================
+// STRONG DIRECTIONAL CONDITIONS
+// ===============================
+if(sentiment === "Bullish" && trend === "Up"){
+  if(ivAvg < 22) return "CALL";
+  return "BULL SPREAD";
+}
+
+if(sentiment === "Bearish" && trend === "Down"){
+  if(ivAvg < 22) return "PUT";
+  return "BEAR SPREAD";
+}
+
+// ===============================
+// VOLATILITY EXPANSION
+// ===============================
+if(trend === "Sideways"){
+  if(expMovePct >= totalPremPct){
+    if(ivAvg < 20) return "STRADDLE";
+    return "STRANGLE";
+  }
+}
+
+// ===============================
+// RANGE / THETA STRUCTURE
+// ===============================
+if(trend === "Sideways" && ivAvg > 25 && Math.abs(netDelta) < 0.10){
+  return "IRON CONDOR";
+}
+
+// ===============================
+// FALLBACK
+// ===============================
+return "NO CLEAR EDGE";
+}
+
+function autoComputeViewOnSymbolSelect(symbol, spot, sentiment, trend){
+
+  const callRows = getCallRows(symbol);
+  const putRows  = getPutRows(symbol);
+
+  if(!callRows.length || !putRows.length){
+    return "";
+  }
+
+  const atmCall = closestToSpot(callRows, spot);
+  const atmPut  = closestToSpot(putRows, spot);
+
+  const totalPremium = (atmCall.LTP || 0) + (atmPut.LTP || 0);
+  const totalPremPct = (totalPremium / spot) * 100;
+
+  const ivAvg = (
+    (atmCall.IV != null ? atmCall.IV : 0) +
+    (atmPut.IV  != null ? atmPut.IV  : 0)
+  ) / 2;
+
+  const netDelta =
+    (atmCall.Delta || 0) +
+    (atmPut.Delta  || 0);
+
+  const DTE = 5;
+  const expMovePct = ivAvg > 0
+    ? (ivAvg/100) * Math.sqrt(DTE/365) * 100
+    : null;
+
+  return decideBestView({
+    trend,
+    sentiment,
+    ivAvg,
+    expMovePct,
+    totalPremPct,
+    netDelta
+  });
+}
+
+function resetPanel(){
+
+  // Reset dropdowns & inputs
+  document.getElementById('symbolSelect').value = "";
+  document.getElementById('spotInput').value = "";
+  document.getElementById('sentimentInput').value = "Bullish";
+  document.getElementById('trendInput').value = "Up";
+  document.getElementById('viewBox').value = "";
+
+  // Clear output
+  document.getElementById('outputBox').style.display = "none";
+  document.getElementById('outputBox').innerHTML = "";
+
+  // Hide WhatsApp button
+  document.getElementById('waBtn').style.display = "none";
+
+  // Clear stored analysis
+  window.lastData = null;
+
+  // Optional status feedback
+  document.getElementById('status').textContent =
+    "Panel reset. Select a symbol to begin.";
+}
+
+
+/* STRATEGY ENGINE */
+function strategySelect(name){
+
+const outputBox=document.getElementById('outputBox');
+const waBtn=document.getElementById('waBtn');
+
+const symbol=document.getElementById('symbolSelect').value;
+const spot=parseFloat(document.getElementById('spotInput').value);
+const sentiment=document.getElementById('sentimentInput').value;
+const trend=document.getElementById('trendInput').value;
+
+if(!symbol){alert("Select symbol");return;}
+if(!spot){alert("Enter spot");return;}
+
+/* ===============================
+          CALL LOGIC
+   =============================== */
+if(name==="CALL"){
+
+const rows=getCallRows(symbol);
+if(!rows.length){alert("No CALL rows found");return;}
+
+const atm=closestToSpot(rows,spot);
+const intraday=atm;
+const swingList=rows.filter(r=>r.Delta>=0.48 && r.Delta<=0.52);
+const swing=swingList.length? closestToSpot(swingList,spot) : atm;
+
+const edge=computeEdgeScore(atm,atm.Strike);
+const quality=edge>=6.5?"Strong":edge>=4?"Moderate":"Weak";
+
+/* Heat bar */
+const heat = buildHeatBar(atm.OIChgP, sentiment);
+
+const summary=[];
+summary.push(`Setup aligns with a ${sentiment.toLowerCase()} bias and ${trend.toLowerCase()} structure.`);
+summary.push(edge>=6.5?`Strong institutional alignment.`:edge>=4?`Moderate, tradable with discipline.`:`Weak — watchlist only.`);
+if(atm.DayChg>0 && atm.OIChgP>0) summary.push(`Price ↑ + OI ↑ — continuation.`);
+if(atm.DayChg>0 && atm.OIChgP<0) summary.push(`Price ↑ + OI ↓ — short covering.`);
+if(atm.DayChg<0 && atm.OIChgP>0) summary.push(`Price ↓ + OI ↑ — counter-trend build-up.`);
+
+const finalHTML=
+`
+<div class="output-grid">
+
+<div>
+<div class="section-title">STWP CALL SELECTION</div>
+Symbol: ${symbol}<br>
+Spot: ${spot}<br>
+Sentiment: ${sentiment}<br>
+Trend: ${trend}<br>
+Edge: ${edge.toFixed(1)}/10<br>
+Quality: ${quality}
+</div>
+
+<div>
+<div class="section-title">STRIKES</div>
+ATM: ${atm.Strike} | LTP ${atm.LTP}<br>
+Intraday: ${intraday.Strike} | LTP ${intraday.LTP}<br>
+Swing: ${swing.Strike} | LTP ${swing.LTP}
+</div>
+
+<div>
+<div class="section-title">SUMMARY</div>
+${summary.join("<br>")}
+</div>
+
+<div>
+<div class="section-title">INTERPRETATION</div>
+Δ ${atm.Delta} | OI ${atm.OIChgP}% | Vol ${atm.VolChg}%<br>
+IV ${atm.IV}% | Structure: ${trend} / ${sentiment}
+</div>
+
+<div>
+<div class="section-title">WHY TAKE THIS TRADE?</div>
+• ATM aligned<br>
+• Liquidity strong<br>
+• Clean R:R<br>
+• Matches trend & sentiment
+</div>
+
+<div>
+<div class="section-title">STWP NOTE</div>
+Weak setups → Watchlist only.<br>
+<b>Buildup Heat:</b> ${heat.bar} ${heat.pct}%<br>
+<b>Type:</b> ${atm.Buildup || "No data"}
+</div>
+
+</div>
+`;
+
+outputBox.style.display="block";
+outputBox.innerHTML=finalHTML;
+
+window.lastData = {
+symbol,
+spot,
+sentiment,
+trend,
+edge: edge.toFixed(1),
+quality,
+atmStrike: atm.Strike,
+atmLTP: atm.LTP,
+intraStrike: intraday.Strike,
+intraLTP: intraday.LTP,
+swingStrike: swing.Strike,
+swingLTP: swing.LTP,
+summary,
+delta: atm.Delta,
+oi: atm.OIChgP,
+vol: atm.VolChg,
+iv: atm.IV,
+type:"CALL",
+heatBar: heat.bar,
+heatPct: heat.pct,
+buildup: atm.Buildup
+};
+
+document.getElementById("viewBox").value =
+  (sentiment === "Bullish" && trend === "Up")
+    ? "CALL / BULL SPREAD"
+    : "CALL (WEAK CONTEXT)";
+
+waBtn.style.display="inline-block";
+}
+
+/* ===============================
+          PUT LOGIC
+   =============================== */
+if(name==="PUT"){
+
+const rows=getPutRows(symbol);
+if(!rows.length){alert("No PUT rows found");return;}
+
+const atm=closestToSpot(rows,spot);
+const intraday=atm;
+const swingList=rows.filter(r=>r.Delta<=-0.48 && r.Delta>=-0.52);
+const swing=swingList.length? closestToSpot(swingList,spot) : atm;
+
+const edge=computeEdgeScore(atm,atm.Strike);
+const quality=edge>=6.5?"Strong":edge>=4?"Moderate":"Weak";
+
+/* Heat bar */
+const heat = buildHeatBar(atm.OIChgP, sentiment);
+
+const summary=[];
+summary.push(`Setup aligns with a ${sentiment.toLowerCase()} bias and ${trend.toLowerCase()} structure.`);
+summary.push(edge>=6.5?`Strong institutional alignment.`:edge>=4?`Moderate, tradable with discipline.`:`Weak — watchlist only.`);
+if(atm.DayChg>0 && atm.OIChgP>0) summary.push(`Price ↑ + OI ↑ — continuation.`);
+if(atm.DayChg>0 && atm.OIChgP<0) summary.push(`Price ↑ + OI ↓ — short covering.`);
+if(atm.DayChg<0 && atm.OIChgP>0) summary.push(`Price ↓ + OI ↑ — counter-trend build-up.`);
+
+const finalHTML=
+`
+<div class="output-grid">
+
+<div>
+<div class="section-title">STWP PUT SELECTION</div>
+Symbol: ${symbol}<br>
+Spot: ${spot}<br>
+Sentiment: ${sentiment}<br>
+Trend: ${trend}<br>
+Edge: ${edge.toFixed(1)}/10<br>
+Quality: ${quality}
+</div>
+
+<div>
+<div class="section-title">STRIKES</div>
+ATM: ${atm.Strike} | LTP ${atm.LTP}<br>
+Intraday: ${intraday.Strike} | LTP ${intraday.LTP}<br>
+Swing: ${swing.Strike} | LTP ${swing.LTP}
+</div>
+
+<div>
+<div class="section-title">SUMMARY</div>
+${summary.join("<br>")}
+</div>
+
+<div>
+<div class="section-title">INTERPRETATION</div>
+Δ ${atm.Delta} | OI ${atm.OIChgP}% | Vol ${atm.VolChg}%<br>
+IV ${atm.IV}% | Structure: ${trend} / ${sentiment}
+</div>
+
+<div>
+<div class="section-title">WHY TAKE THIS TRADE?</div>
+• ATM aligned<br>
+• Liquidity strong<br>
+• Clean R:R<br>
+• Matches trend & sentiment
+</div>
+
+<div>
+<div class="section-title">STWP NOTE</div>
+Weak setups → Watchlist only.<br>
+<b>Buildup Heat:</b> ${heat.bar} ${heat.pct}%<br>
+<b>Type:</b> ${atm.Buildup || "No data"}
+</div>
+
+</div>
+`;
+
+outputBox.style.display="block";
+outputBox.innerHTML=finalHTML;
+
+window.lastData = {
+symbol,
+spot,
+sentiment,
+trend,
+edge: edge.toFixed(1),
+quality,
+atmStrike: atm.Strike,
+atmLTP: atm.LTP,
+intraStrike: intraday.Strike,
+intraLTP: intraday.LTP,
+swingStrike: swing.Strike,
+swingLTP: swing.LTP,
+summary,
+delta: atm.Delta,
+oi: atm.OIChgP,
+vol: atm.VolChg,
+iv: atm.IV,
+type:"PUT",
+heatBar: heat.bar,
+heatPct: heat.pct,
+buildup: atm.Buildup
+};
+
+document.getElementById("viewBox").value =
+  (sentiment === "Bearish" && trend === "Down")
+    ? "PUT / BEAR SPREAD"
+    : "PUT (WEAK CONTEXT)";
+
+waBtn.style.display="inline-block";
+}
+/* ===============================
+          STRADDLE LOGIC
+   =============================== */
+if(name === "STRADDLE"){
+
+const symbol = document.getElementById('symbolSelect').value;
+const spot   = parseFloat(document.getElementById('spotInput').value);
+const sentiment = document.getElementById('sentimentInput').value;
+const trend = document.getElementById('trendInput').value;
+
+if(!symbol || !spot){
+    alert("Select symbol and enter spot");
+    return;
+}
+
+const callRows = getCallRows(symbol);
+const putRows  = getPutRows(symbol);
+
+if(!callRows.length || !putRows.length){
+    alert("Straddle data missing");
+    return;
+}
+
+const atmCall = closestToSpot(callRows, spot);
+const atmPut  = closestToSpot(putRows, spot);
+
+const totalPremium = (atmCall.LTP || 0) + (atmPut.LTP || 0);
+const edge = ((computeEdgeScore(atmCall, atmCall.Strike) +
+               computeEdgeScore(atmPut, atmPut.Strike)) / 2);
+
+// ===============================
+// STRADDLE BREAKEVEN CALCULATION
+// ===============================
+const upsideBE   = atmCall.Strike + totalPremium;
+const downsideBE = atmCall.Strike - totalPremium;
+
+const quality = edge >= 7.5 ? "Strong" : edge >= 5.5 ? "Moderate" : "Weak";
+
+// -------- STRADDLE BUILDUP HEAT (COMBINED OI) --------
+const callOI = isFinite(atmCall.OIChgP) ? atmCall.OIChgP : 0;
+const putOI  = isFinite(atmPut.OIChgP)  ? atmPut.OIChgP  : 0;
+
+// Average OI change for non-directional heat
+const avgOIChg = (callOI + putOI) / 2;
+
+// Use neutral sentiment for straddle
+const straddleHeat = buildHeatBar(avgOIChg, "Neutral");
+
+
+const finalHTML = `
+<div class="output-grid">
+
+<div>
+  <div class="section-title">STWP STRADDLE</div>
+  Symbol: ${symbol}<br>
+  Spot: ${spot}<br>
+  Strike: ${atmCall.Strike}<br>
+  Sentiment: ${sentiment}<br>
+  Trend: ${trend}
+</div>
+
+<div>
+  <div class="section-title">PREMIUM</div>
+  CALL LTP: ${atmCall.LTP}<br>
+  PUT LTP: ${atmPut.LTP}<br>
+  <b>Total:</b> ${totalPremium}
+</div>
+
+<div>
+  <div class="section-title">BREAKEVEN ZONES</div>
+  Upside BE: ${upsideBE.toFixed(2)}<br>
+  Downside BE: ${downsideBE.toFixed(2)}<br>
+  Range Width: ${(upsideBE - downsideBE).toFixed(2)}
+</div>
+
+<div>
+  <div class="section-title">EDGE</div>
+  Edge Score: ${edge.toFixed(1)}/10<br>
+  Quality: ${quality}
+</div>
+
+<div>
+  <div class="section-title">INTERPRETATION</div>
+  Δ Neutral Structure<br>
+  IV sensitive setup<br>
+  Range expansion focus
+</div>
+
+<div>
+  <div class="section-title">STWP NOTE</div>
+  Non-directional volatility structure<br>
+  <b>Buildup Heat:</b> ${straddleHeat.bar} ${straddleHeat.pct}%<br>
+  Best suited before expansion phases
+</div>
+
+</div>
+`;
+
+outputBox.style.display = "block";
+outputBox.innerHTML = finalHTML;
+
+const totalPremPct = (totalPremium / spot) * 100;
+
+// IV avg
+const ivAvg = (
+    (atmCall.IV != null ? atmCall.IV : 0) +
+    (atmPut.IV  != null ? atmPut.IV  : 0)
+) / 2;
+
+// Net delta
+const netDelta = 
+    (atmCall.Delta != null ? atmCall.Delta : 0) +
+    (atmPut.Delta  != null ? atmPut.Delta  : 0);
+
+// Expected move %
+const DTE = 5; // or derive dynamically later
+const expMovePct = ivAvg > 0 ? (ivAvg/100) * Math.sqrt(DTE/365) * 100 : null;
+
+// PCR + MaxPain (safe placeholders for now)
+const pcr = null;
+const maxPain = atmCall.Strike;
+
+window.lastData = {
+type: "STRADDLE",
+symbol,
+spot,
+strike: atmCall.Strike,
+
+callLTP: atmCall.LTP,
+putLTP: atmPut.LTP,
+
+totalPremium,
+totalPremPct,
+
+upsideBE,
+downsideBE,
+
+ivAvg,
+netDelta,
+expMovePct,
+
+pcr,
+maxPain,
+
+edge: edge.toFixed(1),
+quality,
+
+heatBar: straddleHeat.bar,
+heatPct: straddleHeat.pct,
+};
+
+// 🔽 ADD THIS BLOCK
+const bestView = decideBestView({
+  trend,
+  sentiment,
+  ivAvg,
+  expMovePct,
+  totalPremPct,
+  netDelta
+});
+
+document.getElementById("viewBox").value = bestView;
+// 🔼 END ADD
+
+waBtn.style.display = "inline-block";
+}
+
+/* ===============================
+          STRANGLE LOGIC
+   =============================== */
+if(name === "STRANGLE"){
+
+const symbol = document.getElementById('symbolSelect').value;
+const spot   = parseFloat(document.getElementById('spotInput').value);
+const sentiment = document.getElementById('sentimentInput').value;
+const trend = document.getElementById('trendInput').value;
+
+if(!symbol || !spot){
+    alert("Select symbol and enter spot");
+    return;
+}
+
+const callRows = getCallRows(symbol);
+const putRows  = getPutRows(symbol);
+
+if(!callRows.length || !putRows.length){
+    alert("Strangle data missing");
+    return;
+}
+
+/* --- Select OTM strikes --- */
+const otmCallList = callRows.filter(r => r.Strike > spot && r.Delta <= 0.35);
+const otmPutList  = putRows.filter(r => r.Strike < spot && r.Delta >= -0.35);
+
+const callLeg = otmCallList.length ? closestToSpot(otmCallList, spot) : null;
+const putLeg  = otmPutList.length  ? closestToSpot(otmPutList, spot)  : null;
+
+if(!callLeg || !putLeg){
+    alert("No suitable OTM strikes for strangle");
+    return;
+}
+
+const totalPremium = (callLeg.LTP || 0) + (putLeg.LTP || 0);
+
+/* --- Breakevens --- */
+const upsideBE   = callLeg.Strike + totalPremium;
+const downsideBE = putLeg.Strike  - totalPremium;
+
+/* --- Edge --- */
+const edge = (
+    computeEdgeScore(callLeg, callLeg.Strike) +
+    computeEdgeScore(putLeg,  putLeg.Strike)
+) / 2;
+
+const quality = edge >= 7.0 ? "Strong" : edge >= 5.0 ? "Moderate" : "Weak";
+
+/* --- Combined OI Heat --- */
+const avgOIChg = (
+    (isFinite(callLeg.OIChgP) ? callLeg.OIChgP : 0) +
+    (isFinite(putLeg.OIChgP)  ? putLeg.OIChgP  : 0)
+) / 2;
+
+const strangleHeat = buildHeatBar(avgOIChg, "Neutral");
+
+/* --- OUTPUT --- */
+const finalHTML = `
+<div class="output-grid">
+
+<div>
+  <div class="section-title">STWP STRANGLE</div>
+  Symbol: ${symbol}<br>
+  Spot: ${spot}<br>
+  Sentiment: ${sentiment}<br>
+  Trend: ${trend}
+</div>
+
+<div>
+  <div class="section-title">STRIKES</div>
+  CALL: ${callLeg.Strike} | LTP ${callLeg.LTP}<br>
+  PUT: ${putLeg.Strike} | LTP ${putLeg.LTP}<br>
+  <b>Total:</b> ${totalPremium}
+</div>
+
+<div>
+  <div class="section-title">BREAKEVEN ZONES</div>
+  Upside BE: ${upsideBE.toFixed(2)}<br>
+  Downside BE: ${downsideBE.toFixed(2)}<br>
+  Width: ${(upsideBE - downsideBE).toFixed(2)}
+</div>
+
+<div>
+  <div class="section-title">EDGE</div>
+  Edge Score: ${edge.toFixed(1)}/10<br>
+  Quality: ${quality}
+</div>
+
+<div>
+  <div class="section-title">INTERPRETATION</div>
+  Lower premium volatility structure<br>
+  Needs stronger expansion than straddle<br>
+  Time decay more forgiving
+</div>
+
+<div>
+  <div class="section-title">STWP NOTE</div>
+  Directionless expansion strategy<br>
+  <b>Buildup Heat:</b> ${strangleHeat.bar} ${strangleHeat.pct}%<br>
+  Best used when IV is compressed
+</div>
+
+</div>
+`;
+
+outputBox.style.display = "block";
+outputBox.innerHTML = finalHTML;
+
+/* --- Save for WhatsApp Export --- */
+const ivAvg = (
+    (callLeg.IV != null ? callLeg.IV : 0) +
+    (putLeg.IV  != null ? putLeg.IV  : 0)
+) / 2;
+
+const netDelta =
+    (callLeg.Delta != null ? callLeg.Delta : 0) +
+    (putLeg.Delta  != null ? putLeg.Delta  : 0);
+
+const DTE = 5;
+const expMovePct = ivAvg > 0
+    ? (ivAvg/100) * Math.sqrt(DTE/365) * 100
+    : null;
+
+window.lastData = {
+type: "STRANGLE",
+symbol,
+spot,
+
+callStrike: callLeg.Strike,
+putStrike: putLeg.Strike,
+callLTP: callLeg.LTP,
+putLTP: putLeg.LTP,
+
+totalPremium,
+upsideBE,
+downsideBE,
+
+ivAvg,
+netDelta,
+expMovePct,
+
+edge: edge.toFixed(1),
+quality,
+
+heatBar: strangleHeat.bar,
+heatPct: strangleHeat.pct
+};
+
+const totalPremPct = (totalPremium / spot) * 100;
+
+const bestView = decideBestView({
+  trend,
+  sentiment,
+  ivAvg,
+  expMovePct,
+  totalPremPct,
+  netDelta
+});
+
+document.getElementById("viewBox").value = bestView;
+
+
+waBtn.style.display = "inline-block";
+}
+
+if(name === "BULL_SPREAD"){
+
+const symbol = document.getElementById('symbolSelect').value;
+const spot   = parseFloat(document.getElementById('spotInput').value);
+
+const calls = getCallRows(symbol).filter(r => r.Strike >= spot && r.Delta >= 0.35);
+if(calls.length < 2){ alert("Not enough CALL strikes"); return; }
+
+const buyCall  = closestToSpot(calls, spot);
+const sellCall = calls.find(r => r.Strike > buyCall.Strike);
+
+const netDebit = (buyCall.LTP || 0) - (sellCall.LTP || 0);
+const maxProfit = (sellCall.Strike - buyCall.Strike) - netDebit;
+const maxLoss = netDebit;
+
+const edge = (computeEdgeScore(buyCall, buyCall.Strike) +
+              computeEdgeScore(sellCall, sellCall.Strike)) / 2;
+
+const quality = edge >= 6 ? "Strong" : edge >= 4 ? "Moderate" : "Weak";
+
+outputBox.innerHTML = `
+<div class="output-grid">
+<div>
+  <div class="section-title">STWP BULLISH SPREAD</div>
+  Buy CALL: ${buyCall.Strike}<br>
+  Sell CALL: ${sellCall.Strike}
+</div>
+<div>
+  <div class="section-title">PAYOFF</div>
+  Net Debit: ${netDebit.toFixed(2)}<br>
+  Max Profit: ${maxProfit.toFixed(2)}<br>
+  Max Loss: ${maxLoss.toFixed(2)}
+</div>
+<div>
+  <div class="section-title">STWP VIEW</div>
+  Directional bullish with risk defined<br>
+  Better than naked CALL in high IV
+</div>
+<div>
+  <div class="section-title">QUALITY</div>
+  Edge: ${edge.toFixed(1)}/10<br>
+  ${quality}
+</div>
+</div>`;
+outputBox.style.display="block";
+
+window.lastData = {
+type:"BULL_SPREAD", symbol, spot,
+buyStrike: buyCall.Strike,
+sellStrike: sellCall.Strike,
+netDebit, maxProfit, maxLoss,
+edge: edge.toFixed(1), quality
+};
+
+document.getElementById("viewBox").value = "BULL SPREAD";
+
+waBtn.style.display="inline-block";
+}
+
+if(name === "BEAR_SPREAD"){
+
+const symbol = document.getElementById('symbolSelect').value;
+const spot   = parseFloat(document.getElementById('spotInput').value);
+
+const puts = getPutRows(symbol).filter(r => r.Strike <= spot && r.Delta <= -0.35);
+if(puts.length < 2){ alert("Not enough PUT strikes"); return; }
+
+const buyPut  = closestToSpot(puts, spot);
+const sellPut = puts.find(r => r.Strike < buyPut.Strike);
+
+const netDebit = (buyPut.LTP || 0) - (sellPut.LTP || 0);
+const maxProfit = (buyPut.Strike - sellPut.Strike) - netDebit;
+const maxLoss = netDebit;
+
+const edge = (computeEdgeScore(buyPut, buyPut.Strike) +
+              computeEdgeScore(sellPut, sellPut.Strike)) / 2;
+
+const quality = edge >= 6 ? "Strong" : edge >= 4 ? "Moderate" : "Weak";
+
+outputBox.innerHTML = `
+<div class="output-grid">
+<div>
+  <div class="section-title">STWP BEARISH SPREAD</div>
+  Buy PUT: ${buyPut.Strike}<br>
+  Sell PUT: ${sellPut.Strike}
+</div>
+<div>
+  <div class="section-title">PAYOFF</div>
+  Net Debit: ${netDebit.toFixed(2)}<br>
+  Max Profit: ${maxProfit.toFixed(2)}<br>
+  Max Loss: ${maxLoss.toFixed(2)}
+</div>
+<div>
+  <div class="section-title">STWP VIEW</div>
+  Controlled downside participation<br>
+  Safer than naked PUT
+</div>
+<div>
+  <div class="section-title">QUALITY</div>
+  Edge: ${edge.toFixed(1)}/10<br>
+  ${quality}
+</div>
+</div>`;
+outputBox.style.display="block";
+
+window.lastData = {
+type:"BEAR_SPREAD", symbol, spot,
+buyStrike: buyPut.Strike,
+sellStrike: sellPut.Strike,
+netDebit, maxProfit, maxLoss,
+edge: edge.toFixed(1), quality
+};
+
+document.getElementById("viewBox").value = "BEAR SPREAD";
+
+waBtn.style.display="inline-block";
+}
+
+if(name === "IRON_CONDOR"){
+
+const symbol = document.getElementById('symbolSelect').value;
+const spot   = parseFloat(document.getElementById('spotInput').value);
+
+const calls = getCallRows(symbol);
+const puts  = getPutRows(symbol);
+
+const sellCall = calls.find(r => r.Strike > spot && r.Delta <= 0.20);
+const buyCall  = calls.find(r => r.Strike > sellCall.Strike);
+
+const sellPut  = puts.find(r => r.Strike < spot && r.Delta >= -0.20);
+const buyPut   = puts.find(r => r.Strike < sellPut.Strike);
+
+if(!sellCall || !buyCall || !sellPut || !buyPut){
+  alert("Iron Condor legs not found");
+  return;
+}
+
+const credit =
+ (sellCall.LTP + sellPut.LTP) -
+ (buyCall.LTP + buyPut.LTP);
+
+const width = Math.min(
+ buyCall.Strike - sellCall.Strike,
+ sellPut.Strike - buyPut.Strike
+);
+
+const maxLoss = width - credit;
+
+outputBox.innerHTML = `
+<div class="output-grid">
+<div>
+  <div class="section-title">STWP IRON CONDOR</div>
+  Call Wing: ${sellCall.Strike}/${buyCall.Strike}<br>
+  Put Wing: ${sellPut.Strike}/${buyPut.Strike}
+</div>
+<div>
+  <div class="section-title">PAYOFF</div>
+  Net Credit: ${credit.toFixed(2)}<br>
+  Max Loss: ${maxLoss.toFixed(2)}
+</div>
+<div>
+  <div class="section-title">STWP VIEW</div>
+  Neutral range-bound income setup<br>
+  Best in falling IV
+</div>
+<div>
+  <div class="section-title">RISK NOTE</div>
+  Requires disciplined exits<br>
+  Avoid during expansion
+</div>
+</div>`;
+outputBox.style.display="block";
+
+window.lastData = {
+type:"IRON_CONDOR",
+symbol,
+spot,
+callWing: `${sellCall.Strike}/${buyCall.Strike}`,
+putWing: `${sellPut.Strike}/${buyPut.Strike}`,
+credit,
+maxLoss
+};
+
+document.getElementById("viewBox").value = "IRON CONDOR";
+
+waBtn.style.display="inline-block";
+}
+
+}
+function formatNum(v, d=2){
+    if(v == null || !isFinite(v)) return "n/a";
+    return Number(v).toFixed(d);
+}
+
+function netDeltaView(delta){
+    if(!isFinite(delta)) return "n/a";
+    const a = Math.abs(delta);
+    if(a < 0.10) return "Near neutral (pure volatility bet)";
+    if(a < 0.25) return "Mild directional bias";
+    return "Strong directional skew";
+}
+
+function premiumView(pct){
+    if(!isFinite(pct)) return "Premium assessment unavailable.";
+    if(pct > 2.5) return "Premium is on the richer side versus spot.";
+    if(pct > 1.2) return "Premium is in a moderate, balanced zone.";
+    return "Premium is relatively light versus spot.";
+}
+
+function ivView(iv){
+    if(!isFinite(iv)) return "IV data unavailable.";
+    if(iv > 35) return "IV is elevated, indicating event-driven or risk pricing.";
+    if(iv >= 18) return "IV sits in a healthy middle band.";
+    return "IV is on the lower side, indicating calm conditions.";
+}
+
+function exportWhatsApp() {
+
+if (!window.lastData) {
+    alert("No data to export!");
+    return;
+}
+
+const d = window.lastData;
+if(d.type === "BULL_SPREAD"){
+
+const now = new Date().toLocaleString();
+
+const msg =
+`STWP BULLISH SPREAD ANALYSIS
+Generated: ${now}
+------------------------------------------------------------
+
+Symbol: ${d.symbol}
+Spot: ${formatNum(d.spot,2)}
+
+Structure:
+Buy CALL: ${d.buyStrike}
+Sell CALL: ${d.sellStrike}
+
+Net Debit Paid: ${formatNum(d.netDebit,2)}
+Maximum Profit: ${formatNum(d.maxProfit,2)}
+Maximum Loss: ${formatNum(d.maxLoss,2)}
+
+Edge Score: ${d.edge}/10
+Quality: ${d.quality}
+
+STWP View:
+• Bullish, risk-defined structure
+• Better than naked CALL in high IV
+• Limited reward but controlled risk
+• Requires directional follow-through
+
+------------------------------------------------------------
+Educational analysis only. Not a recommendation.`;
+
+navigator.clipboard.writeText(msg);
+alert("STWP Bullish Spread WhatsApp message copied!");
+return;
+}
+
+if(d.type === "BEAR_SPREAD"){
+
+const now = new Date().toLocaleString();
+
+const msg =
+`STWP BEARISH SPREAD ANALYSIS
+Generated: ${now}
+------------------------------------------------------------
+
+Symbol: ${d.symbol}
+Spot: ${formatNum(d.spot,2)}
+
+Structure:
+Buy PUT: ${d.buyStrike}
+Sell PUT: ${d.sellStrike}
+
+Net Debit Paid: ${formatNum(d.netDebit,2)}
+Maximum Profit: ${formatNum(d.maxProfit,2)}
+Maximum Loss: ${formatNum(d.maxLoss,2)}
+
+Edge Score: ${d.edge}/10
+Quality: ${d.quality}
+
+STWP View:
+• Bearish, risk-defined structure
+• Lower decay impact than naked PUT
+• Works best in controlled downside moves
+• Avoid during sharp IV contraction
+
+------------------------------------------------------------
+Educational analysis only. Not a recommendation.`;
+
+navigator.clipboard.writeText(msg);
+alert("STWP Bearish Spread WhatsApp message copied!");
+return;
+}
+
+if(d.type === "IRON_CONDOR"){
+
+const now = new Date().toLocaleString();
+
+const msg =
+`STWP IRON CONDOR ANALYSIS
+Generated: ${now}
+------------------------------------------------------------
+
+Symbol: ${d.symbol}
+Spot: ${formatNum(d.spot,2)}
+
+Structure:
+Call Wing: ${d.callWing || "OTM"} 
+Put Wing: ${d.putWing || "OTM"}
+
+Net Credit Received: ${formatNum(d.credit,2)}
+Maximum Loss (Defined): ${formatNum(d.maxLoss,2)}
+
+Market Nature:
+• Range-bound
+• Low momentum
+• Falling or stable IV preferred
+
+STWP View:
+• Neutral income strategy
+• Theta-positive structure
+• Needs strict risk management
+• Avoid during breakout or news phases
+
+------------------------------------------------------------
+Educational analysis only. Not a recommendation.`;
+
+navigator.clipboard.writeText(msg);
+alert("STWP Iron Condor WhatsApp message copied!");
+return;
+}
+
+if(d.type === "STRANGLE"){
+
+const now = new Date().toLocaleString();
+
+const msg =
+`STWP STRANGLE ANALYSIS
+Generated: ${now}
+------------------------------------------------------------
+
+Symbol: ${d.symbol}
+Spot: ${formatNum(d.spot,2)}
+
+CALL Strike: ${d.callStrike} | Premium: ${formatNum(d.callLTP,2)}
+PUT Strike: ${d.putStrike} | Premium: ${formatNum(d.putLTP,2)}
+
+Total Premium: ${formatNum(d.totalPremium,2)}
+Expected Move %: ${formatNum(d.expMovePct,2)}%
+Average IV: ${formatNum(d.ivAvg,2)}%
+Net Delta: ${formatNum(d.netDelta,2)}
+
+Breakevens:
+Upside BE: ${formatNum(d.upsideBE,2)}
+Downside BE: ${formatNum(d.downsideBE,2)}
+
+Edge Score: ${d.edge}/10
+Quality: ${d.quality}
+
+STWP View:
+• Lower cost volatility structure
+• Requires stronger price expansion
+• Best suited when IV is compressed
+• Time decay is slower vs straddle
+
+------------------------------------------------------------
+Educational analysis only. Not a recommendation.`;
+
+navigator.clipboard.writeText(msg);
+alert("STWP Strangle WhatsApp message copied!");
+return;
+}
+
+/* ===============================
+      STRADDLE WHATSAPP EXPORT
+   =============================== */
+if(d.type === "STRADDLE"){
+
+const now = new Date().toLocaleString();
+
+const msg =
+`STWP STRADDLE ANALYSIS REPORT
+Generated: ${now}
+View: ${d.symbol} | ATM-only: ON
+------------------------------------------------------------
+
+STRADDLE ANALYSIS – ${d.symbol} ${d.strike}
+Spot: ${formatNum(d.spot,2)}
+Call Premium: ${formatNum(d.callLTP,2)}
+Put Premium: ${formatNum(d.putLTP,2)}
+Total Premium %: ${formatNum(d.totalPremPct,2)}%
+Expected Move %: ${formatNum(d.expMovePct,2)}%
+Average IV: ${formatNum(d.ivAvg,2)}%
+Net Delta: ${formatNum(d.netDelta,2)}
+PCR (symbol-level): ${formatNum(d.pcr,2)}
+Max Pain (symbol-level): ${d.maxPain}
+Verdict: ${d.quality}
+Score: ${d.edge}/10
+Breakeven Levels:
+Upside BE: ${formatNum(d.upsideBE,2)}
+Downside BE: ${formatNum(d.downsideBE,2)}
+Required Move: ${formatNum(d.upsideBE - d.strike,2)} points
+
+Why this straddle behaves the way it does:
+• ${premiumView(d.totalPremPct)}
+• ${ivView(d.ivAvg)}
+• ${d.expMovePct >= d.totalPremPct 
+    ? "The statistically expected move is greater than or equal to the premium. This favours long-volatility traders."
+    : "Expected move is lower than the premium, requiring stronger expansion to justify the cost."}
+• Net delta assessment: ${netDeltaView(d.netDelta)}
+• ${
+    d.pcr == null
+        ? "PCR data unavailable. OI-based positioning cannot be reliably assessed."
+        : d.pcr < 0.8
+            ? "PCR is low. Call writing is heavier, often seen when upside expectations are capped."
+            : d.pcr > 1.2
+                ? "PCR is high. Put writing dominates, indicating downside confidence."
+                : "PCR is neutral, indicating balanced positioning."
+}
+• ${
+    d.maxPain == null || d.spot == null
+        ? "Max Pain relationship to spot cannot be evaluated."
+        : Math.abs(d.maxPain - d.spot) > Math.abs(d.strike - d.spot)
+            ? "Max Pain is away from current spot. There is room for genuine trending moves."
+            : "Max Pain is near spot, which may magnetize price into expiry."
+}
+
+
+Overall STWP View:
+${
+    d.edge >= 7.5 && d.expMovePct >= d.totalPremPct
+        ? "• Structure strongly supports a long-volatility strategy with statistical backing.\n• Suitable as a primary volatility setup."
+        : d.edge >= 5.5
+            ? "• Setup is mixed. Volatility pricing requires expansion beyond current statistical expectations.\n• Best treated as a conditional or watchlist volatility setup."
+            : "• Conditions do not favour long straddle buyers at this stage.\n• Risk-reward is unfavourable without a volatility catalyst."
+}
+
+------------------------------------------------------------`;
+
+navigator.clipboard.writeText(msg);
+alert("STWP Straddle WhatsApp message copied!");
+return;
+}
+
+/* ===============================
+      CALL / PUT — DETAILED EXPORT
+   =============================== */
+
+const now = new Date().toLocaleString();
+
+// --- Delta Interpretation ---
+let deltaView = "n/a";
+if (isFinite(d.delta)) {
+    const ad = Math.abs(d.delta);
+    if (ad >= 0.55) deltaView = "High delta — aggressive directional exposure";
+    else if (ad >= 0.40) deltaView = "Balanced delta — efficient directional exposure";
+    else deltaView = "Low delta — momentum dependent";
+}
+
+// --- OI + Price Behaviour ---
+let oiView = "OI behaviour unclear.";
+if (d.oi != null && d.summary) {
+    if (d.summary.some(s => s.includes("continuation")))
+        oiView = "Price and OI are aligned — continuation structure.";
+    else if (d.summary.some(s => s.includes("short covering")))
+        oiView = "Short covering driven move — follow-through required.";
+    else if (d.summary.some(s => s.includes("counter-trend")))
+        oiView = "Counter-trend positioning — higher risk setup.";
+}
+
+// --- IV Regime ---
+let ivViewDir = "IV regime neutral.";
+if (isFinite(d.iv)) {
+    if (d.iv < 18) ivViewDir = "IV is low — decay is slower, momentum required.";
+    else if (d.iv > 35) ivViewDir = "IV is elevated — risk of volatility contraction.";
+    else ivViewDir = "IV sits in a healthy middle band.";
+}
+
+const msg =
+`STWP DIRECTIONAL OPTIONS ANALYSIS
+Generated: ${now}
+View: ${d.symbol} | ${d.type} Structure
+------------------------------------------------------------
+
+TRADE SNAPSHOT – ${d.symbol} ${d.type}
+Spot: ${d.spot}
+Sentiment: ${d.sentiment}
+Trend: ${d.trend}
+
+Selected Strike: ${d.atmStrike}
+Option LTP: ${d.atmLTP}
+
+------------------------------------------------------------
+
+POSITIONING & PARTICIPATION
+Delta: ${d.delta} → ${deltaView}
+OI Change: ${d.oi}%
+Volume Change: ${d.vol}%
+Buildup Type: ${d.buildup || "Not available"}
+
+Interpretation:
+• ${oiView}
+
+------------------------------------------------------------
+
+STRUCTURE QUALITY METRICS
+Edge Score: ${d.edge}/10
+Setup Quality: ${d.quality}
+
+Why this setup scores this way:
+• Strike is positioned close to ATM for liquidity
+• Delta profile supports directional exposure
+• OI and volume indicate participation strength
+• ${ivViewDir}
+
+------------------------------------------------------------
+
+RISK & BEHAVIOUR NOTES
+• Directional options are sensitive to time decay
+• Momentum continuation is essential for payoff
+• Sideways price action will erode premium
+• Position sizing discipline is critical
+
+------------------------------------------------------------
+
+OVERALL STWP VIEW:
+${
+    d.quality === "Strong"
+        ? "• High-conviction directional structure with institutional alignment."
+        : d.quality === "Moderate"
+            ? "• Tradable setup with discipline; avoid over-sizing."
+            : "• Structure lacks confirmation; best kept on watchlist."
+}
+
+------------------------------------------------------------
+Educational analysis only. Not a recommendation.`;
+
+navigator.clipboard.writeText(msg);
+alert(`STWP ${d.type} WhatsApp message copied!`);
+
+}
+
+</script>
+
+<footer class="stwp-disclaimer">
+  <strong>Disclaimer:</strong>
+  This tool is provided strictly for <b>educational and analytical purposes</b> only.
+  All option structures, views, scores, and interpretations displayed are
+  <b>model-based observations</b> derived from uploaded market data.
+  <br><br>
+  This does <b>not</b> constitute investment advice, trading advice, or a recommendation
+  to buy or sell any security or derivative.
+  Options trading involves risk and may not be suitable for all participants.
+  Users must exercise independent judgment and consult a
+  <b>SEBI-registered financial advisor</b> before making any trading or investment decisions.
+  <br><br>
+  STWP assumes no responsibility for any financial loss arising from the use of this tool.
+</footer>
+
 </body>
 </html>
