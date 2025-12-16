@@ -1,3 +1,7 @@
+
+
+
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -290,12 +294,62 @@ tr.put-row  { background:#fff2f2; }
 <!-- OUTPUT -->
 <div id="outputBox"></div>
 <button id="waBtn" onclick="exportWhatsApp()">Export WhatsApp Message</button>
-<div style="font-size:10px;color:#666;margin-top:6px;"> 🟩 Directional OI | 🟧 Neutral / Spread | 🟥 Defensive / Bearish Heat reflects <b>relative OI change intensity</b>, not trade recommendation. </div>
+<div style="font-size:10px;color:#666;margin-top:6px;"> 🟩 Directional OI | 🟧 Neutral / Spread | 🟥 Defensive / Heat reflects net institutional conviction (price + OI + buildup)</b>, not trade recommendation. </div>
 
 <script>
 
 let fullCSVRows = [];
 let spotColumnIndex = -1;
+/* ---------------------------------------------------------
+   STWP CONVICTION SCORE (NET PARTICIPATION LOGIC)
+----------------------------------------------------------*/
+function computeConvictionScore({ oiChgP, dayChg, buildup, trend }) {
+
+  let score = 0;
+
+  // Participation strength (log-scaled, avoids 100% saturation)
+  if (oiChgP > 0) {
+    score += Math.min(40, Math.log10(oiChgP + 1) * 20);
+  }
+
+  // Price confirmation
+  if (dayChg > 0) score += 20;
+  if (dayChg < 0) score -= 20;
+
+  // Buildup interpretation
+  const b = (buildup || "").toLowerCase();
+
+  if (b.includes("long build"))  score += 25;
+  if (b.includes("short cover")) score += 10;
+  if (b.includes("short build")) score -= 25;
+  if (b.includes("long unwind")) score -= 15;
+
+  // Trend alignment
+  if (trend === "Up"   && b.includes("long build"))  score += 20;
+  if (trend === "Up"   && b.includes("short build")) score -= 20;
+  if (trend === "Down" && b.includes("short build")) score += 20;
+  if (trend === "Down" && b.includes("long build"))  score -= 20;
+
+  return Math.max(-100, Math.min(100, score));
+}
+
+/* ---------------------------------------------------------
+   HEAT BAR FROM CONVICTION (NOT SENTIMENT)
+----------------------------------------------------------*/
+function buildHeatBarFromConviction(score) {
+
+  const blocks = 10;
+  const filled = Math.round(Math.abs(score) / 10);
+
+  let color = "🟧";           // Neutral
+  if (score > 20)  color = "🟩"; // Supportive
+  if (score < -20) color = "🟥"; // Opposing / Capping
+
+  return {
+    bar: color.repeat(filled) + "⬜".repeat(blocks - filled),
+    pct: Math.abs(score)
+  };
+}
 
 /* ---------------------------------------------------------
           BUILDUP HEAT BAR (10 COLOR BLOCKS)
@@ -434,6 +488,29 @@ if(!s) return null;
 const n=parseFloat(s);
 return isNaN(n)?null:n;
 }
+/* =====================================
+   DTE-BASED STRIKE USABILITY FILTER
+===================================== */
+function isStrikeUsableByDTE({ delta, DTE }) {
+
+  if(delta == null || DTE == null) return true; // fail-safe
+
+  const ad = Math.abs(delta);
+
+  if(DTE <= 1){
+    return ad >= 0.50;       // ATM / ITM only
+  }
+
+  if(DTE <= 3){
+    return ad >= 0.45;
+  }
+
+  if(DTE <= 7){
+    return ad >= 0.40;
+  }
+
+  return ad >= 0.30;
+}
 
 /* GET CALL ROWS */
 function getCallRows(symbol){
@@ -556,17 +633,49 @@ return deltaComp*0.30 + oiVolComp*0.30 + buildupComp*0.20 + ivComp*0.10 + atmCom
 }
 
 function decideBestView(context){
+// ===============================
+// DTE HARD FILTERS (INSTITUTIONAL)
+// ===============================
+if(DTE <= 1){
+  return "OBSERVE ONLY — Gamma Risk High";
+}
+
+if(DTE <= 3 && (ivAvg > 28)){
+  return "AVOID LONG PREMIUM — IV + Gamma Risk";
+}
 
 const {
   trend, sentiment,
   ivAvg, expMovePct,
   totalPremPct,
-  netDelta
+  netDelta,
+  DTE
 } = context;
 
 // Safety
 if(ivAvg == null || expMovePct == null){
   return "DATA INSUFFICIENT";
+}
+// ===============================
+// STRATEGY TIME SUITABILITY
+// ===============================
+
+// Long volatility needs time
+if((DTE <= 3) && (trend === "Sideways")){
+  return "STRADDLE / STRANGLE NOT ADVISED — Time Insufficient";
+}
+
+// Income structures need decay window
+if(DTE < 5){
+  // Blocks Iron Condor & heavy theta plays
+  if(trend === "Sideways"){
+    return "NO THETA EDGE — EXPIRY TOO NEAR";
+  }
+}
+
+// Naked directional too risky very late
+if(DTE <= 1 && (sentiment !== "Neutral")){
+  return "DIRECTIONAL GAMMA RISK — AVOID";
 }
 
 // ===============================
@@ -638,13 +747,14 @@ function autoComputeViewOnSymbolSelect(symbol, spot, sentiment, trend){
     : null;
 
   return decideBestView({
-    trend,
-    sentiment,
-    ivAvg,
-    expMovePct,
-    totalPremPct,
-    netDelta
-  });
+  trend,
+  sentiment,
+  ivAvg,
+  expMovePct,
+  totalPremPct,
+  netDelta,
+  DTE
+});
 }
 
 function resetPanel(){
@@ -895,6 +1005,30 @@ const rows=getCallRows(symbol);
 if(!rows.length){alert("No CALL rows found");return;}
 
 const atm=closestToSpot(rows,spot);
+const DTE = calculateDTE(
+  document.getElementById("expiryInput").value
+) || 0;
+// ===============================
+// DTE STRIKE USABILITY CHECK
+// ===============================
+if(!isStrikeUsableByDTE({ delta: atm.Delta, DTE })){
+
+  outputBox.style.display = "block";
+  outputBox.innerHTML = `
+    <div style="
+      background:#fff3cd;
+      padding:12px;
+      border-radius:6px;
+      font-size:12px;
+      border-left:3px solid #fd7e14;
+    ">
+      <b>STRIKE FILTERED BY TIME</b><br>
+      Selected CALL strike is not suitable for the current expiry window.<br>
+      <i>High theta / gamma risk due to low DTE.</i>
+    </div>
+  `;
+  return;
+}
 const intraday=atm;
 const swingList=rows.filter(r=>r.Delta>=0.48 && r.Delta<=0.52);
 const swing=swingList.length? closestToSpot(swingList,spot) : atm;
@@ -903,11 +1037,6 @@ const edge=computeEdgeScore(atm,atm.Strike);
 const quality=edge>=6.5?"Strong":edge>=4?"Moderate":"Weak";
 // ===== DESK INTELLIGENCE (CALL) =====
 const ivAvg = atm.IV;
-const DTE = calculateDTE(
-  document.getElementById("expiryInput").value
-) || 0;
-
-
 const expMovePct = ivAvg > 0
   ? (ivAvg/100) * Math.sqrt(DTE/365) * 100
   : null;
@@ -935,7 +1064,14 @@ const deskHTML = renderDeskIntelligence({
 
 
 /* Heat bar */
-const heat = buildHeatBar(atm.OIChgP, sentiment);
+const convictionScore = computeConvictionScore({
+  oiChgP: atm.OIChgP,
+  dayChg: atm.DayChg,
+  buildup: atm.Buildup,
+  trend
+});
+
+const heat = buildHeatBarFromConviction(convictionScore);
 
 const summary=[];
 summary.push(`Setup aligns with a ${sentiment.toLowerCase()} bias and ${trend.toLowerCase()} structure.`);
@@ -1059,6 +1195,30 @@ const rows = getPutRows(symbol);
 if(!rows.length){ alert("No PUT rows found"); return; }
 
 const atm = closestToSpot(rows, spot);
+const DTE = calculateDTE(
+  document.getElementById("expiryInput").value
+) || 0;
+// ===============================
+// DTE STRIKE USABILITY CHECK
+// ===============================
+if(!isStrikeUsableByDTE({ delta: atm.Delta, DTE })){
+
+  outputBox.style.display = "block";
+  outputBox.innerHTML = `
+    <div style="
+      background:#fff3cd;
+      padding:12px;
+      border-radius:6px;
+      font-size:12px;
+      border-left:3px solid #fd7e14;
+    ">
+      <b>STRIKE FILTERED BY TIME</b><br>
+      Selected PUT strike is not suitable for the current expiry window.<br>
+      <i>High theta / gamma risk due to low DTE.</i>
+    </div>
+  `;
+  return;
+}
 const intraday = atm;
 const swingList = rows.filter(r => r.Delta <= -0.48 && r.Delta >= -0.52);
 const swing = swingList.length ? closestToSpot(swingList, spot) : atm;
@@ -1068,11 +1228,6 @@ const quality = edge >= 6.5 ? "Strong" : edge >= 4 ? "Moderate" : "Weak";
 
 /* ===== DESK INTELLIGENCE (PUT) ===== */
 const ivAvg = atm.IV;
-const DTE = calculateDTE(
-  document.getElementById("expiryInput").value
-) || 0;
-
-
 const expMovePct = ivAvg > 0
   ? (ivAvg / 100) * Math.sqrt(DTE / 365) * 100
   : null;
@@ -1099,7 +1254,14 @@ const deskHTML = renderDeskIntelligence({
 });
 
 /* ===== HEAT BAR ===== */
-const heat = buildHeatBar(atm.OIChgP, sentiment);
+const convictionScore = computeConvictionScore({
+  oiChgP: atm.OIChgP,
+  dayChg: atm.DayChg,
+  buildup: atm.Buildup,
+  trend
+});
+
+const heat = buildHeatBarFromConviction(convictionScore);
 
 /* ===== SUMMARY (PRICE–OI LOGIC) ===== */
 const summary = [];
@@ -1291,7 +1453,12 @@ const callOI = isFinite(atmCall.OIChgP) ? atmCall.OIChgP : 0;
 const putOI  = isFinite(atmPut.OIChgP)  ? atmPut.OIChgP  : 0;
 const avgOIChg = (callOI + putOI) / 2;
 
-const straddleHeat = buildHeatBar(avgOIChg, "Neutral");
+const activityScore = Math.min(
+  100,
+  Math.log10(Math.abs(avgOIChg) + 1) * 20
+);
+
+const straddleHeat = buildHeatBarFromConviction(activityScore);
 
 /* ===== SUMMARY ===== */
 const summary = [];
@@ -1506,7 +1673,12 @@ const avgOIChg = (
   (isFinite(putLeg.OIChgP)  ? putLeg.OIChgP  : 0)
 ) / 2;
 
-const strangleHeat = buildHeatBar(avgOIChg, "Neutral");
+const activityScore = Math.min(
+  100,
+  Math.log10(Math.abs(avgOIChg) + 1) * 20
+);
+
+const strangleHeat = buildHeatBarFromConviction(activityScore);
 
 /* ===== SUMMARY ===== */
 const summary = [];
@@ -1688,10 +1860,15 @@ const edge = (
 const quality = edge >= 6 ? "Strong" : edge >= 4 ? "Moderate" : "Weak";
 
 /* ===== BULL SPREAD HEAT ===== */
-const bullSpreadHeat = buildSpreadHeat(
-  buyCall.OIChgP,
-  sellCall.OIChgP
+const activityScore = Math.min(
+  100,
+  Math.log10(
+    Math.abs(buyCall.OIChgP || 0) +
+    Math.abs(sellCall.OIChgP || 0) + 1
+  ) * 15
 );
+
+const bullSpreadHeat = buildHeatBarFromConviction(activityScore);
 
 /* ===== SUMMARY ===== */
 const summary = [];
@@ -1855,10 +2032,15 @@ const edge = (
 const quality = edge >= 6 ? "Strong" : edge >= 4 ? "Moderate" : "Weak";
 
 /* ===== BEAR SPREAD HEAT ===== */
-const bearSpreadHeat = buildSpreadHeat(
-  buyPut.OIChgP,
-  sellPut.OIChgP
+const activityScore = Math.min(
+  100,
+  Math.log10(
+    Math.abs(buyPut.OIChgP || 0) +
+    Math.abs(sellPut.OIChgP || 0) + 1
+  ) * 15
 );
+
+const bearSpreadHeat = buildHeatBarFromConviction(activityScore);
 
 /* ===== SUMMARY ===== */
 const summary = [];
@@ -2037,7 +2219,12 @@ const avgOI =
     (buyPut.OIChgP   || 0)
   ) / 4;
 
-const ironCondorHeat = buildHeatBar(avgOI, "Neutral");
+const activityScore = Math.min(
+  100,
+  Math.log10(Math.abs(avgOI) + 1) * 20
+);
+
+const ironCondorHeat = buildHeatBarFromConviction(activityScore);
 
 /* ===== SUMMARY ===== */
 const summary = [];
