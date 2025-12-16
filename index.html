@@ -445,39 +445,26 @@ reader.readAsText(f);
 });
 
 document.getElementById('symbolSelect').addEventListener('change',()=>{
-const selected=document.getElementById('symbolSelect').value;
-const spotInput=document.getElementById('spotInput');
-renderCSVTable(selected);
+  const selected=document.getElementById('symbolSelect').value;
+  const spotInput=document.getElementById('spotInput');
+  renderCSVTable(selected);
 
-if(!selected){spotInput.value='';return;}
-
-for(let i=1;i<fullCSVRows.length;i++){
-const row=fullCSVRows[i];
-if((row[0]||'').trim().toUpperCase()===selected){
-spotInput.value=row[spotColumnIndex]||'';
-break;
-}
-}
-});
-
-// Clear View when symbol changes (prevents stale signals)
-document.getElementById('symbolSelect').addEventListener('change',()=>{
-
-  const symbol = document.getElementById('symbolSelect').value;
-  const spot   = parseFloat(document.getElementById('spotInput').value);
-  const sentiment = document.getElementById('sentimentInput').value;
-  const trend = document.getElementById('trendInput').value;
-
-  if(!symbol || !spot){
+  if(!selected){
+    spotInput.value='';
     document.getElementById("viewBox").value = "";
     return;
   }
 
-  const view = autoComputeViewOnSymbolSelect(
-    symbol, spot, sentiment, trend
-  );
+  for(let i=1;i<fullCSVRows.length;i++){
+    const row=fullCSVRows[i];
+    if((row[0]||'').trim().toUpperCase()===selected){
+      spotInput.value=row[spotColumnIndex]||'';
+      break;
+    }
+  }
 
-  document.getElementById("viewBox").value = view || "NO VIEW";
+  // 🔑 NOW spot exists → compute AUTO VIEW
+  refreshViewBox();
 });
 
 /* HELPERS */
@@ -633,6 +620,13 @@ return deltaComp*0.30 + oiVolComp*0.30 + buildupComp*0.20 + ivComp*0.10 + atmCom
 }
 
 function decideBestView(context){
+const {
+  trend, sentiment,
+  ivAvg, expMovePct,
+  totalPremPct,
+  netDelta,
+  DTE
+} = context;
 // ===============================
 // DTE HARD FILTERS (INSTITUTIONAL)
 // ===============================
@@ -643,14 +637,6 @@ if(DTE <= 1){
 if(DTE <= 3 && (ivAvg > 28)){
   return "AVOID LONG PREMIUM — IV + Gamma Risk";
 }
-
-const {
-  trend, sentiment,
-  ivAvg, expMovePct,
-  totalPremPct,
-  netDelta,
-  DTE
-} = context;
 
 // Safety
 if(ivAvg == null || expMovePct == null){
@@ -755,6 +741,37 @@ function autoComputeViewOnSymbolSelect(symbol, spot, sentiment, trend){
   netDelta,
   DTE
 });
+}
+function refreshViewBox(){
+
+  const symbol    = document.getElementById("symbolSelect").value;
+  const spot      = parseFloat(document.getElementById("spotInput").value);
+  const sentiment = document.getElementById("sentimentInput").value;
+  const trend     = document.getElementById("trendInput").value;
+  const expiry    = document.getElementById("expiryInput").value;
+
+  const viewBox = document.getElementById("viewBox");
+
+  // Mandatory inputs for a valid View
+  if(!symbol || !spot || !expiry){
+    viewBox.value = "";
+    return;
+  }
+
+  const DTE = calculateDTE(expiry);
+  if(DTE == null){
+    viewBox.value = "";
+    return;
+  }
+
+  const view = autoComputeViewOnSymbolSelect(
+    symbol,
+    spot,
+    sentiment,
+    trend
+  );
+
+  viewBox.value = view || "NO CLEAR EDGE";
 }
 
 function resetPanel(){
@@ -2813,14 +2830,28 @@ function calculateDTE(expiryDateStr){
 
   return dte >= 0 ? dte : 0;
 }
+
+/* ===============================
+   VIEW AUTO-REFRESH HOOKS
+================================ */
+["symbolSelect", "sentimentInput", "trendInput", "expiryInput"]
+.forEach(id => {
+  document.getElementById(id).addEventListener(
+    "change",
+    refreshViewBox
+  );
+});
+
 document.getElementById("expiryInput").addEventListener("change", () => {
   const expiry = document.getElementById("expiryInput").value;
   const dte = calculateDTE(expiry);
 
   document.getElementById("dteInput").value =
     dte != null ? `${dte} days` : "";
-});
 
+  // 🔑 Refresh View once DTE is known
+  refreshViewBox();
+});
 
 </script>
 
@@ -2861,4 +2892,5 @@ document.getElementById("expiryInput").addEventListener("change", () => {
 
 </body>
 </html>
+
 
