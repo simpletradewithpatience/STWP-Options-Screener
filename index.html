@@ -1,7 +1,3 @@
-
-
-
-
 <!doctype html>
 <html lang="en">
 <head>
@@ -293,7 +289,26 @@ tr.put-row  { background:#fff2f2; }
 
 <!-- OUTPUT -->
 <div id="outputBox"></div>
-<button id="waBtn" onclick="exportWhatsApp()">Export WhatsApp Message</button>
+<div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
+    <button id="waBtn" onclick="exportWhatsApp()">Export WhatsApp Message</button>
+
+    <button id="downloadBtn"
+        onclick="downloadOptionChain()"
+        style="
+            background:#0d6efd;
+            color:#fff;
+            padding:6px 12px;
+            border-radius:6px;
+            border:0;
+            font-size:12px;
+            font-weight:600;
+            cursor:pointer;
+            display:none;
+        ">
+        Download Option Chain
+    </button>
+</div>
+
 <div style="font-size:10px;color:#666;margin-top:6px;"> 🟩 Directional OI | 🟧 Neutral / Spread | 🟥 Defensive / Heat reflects net institutional conviction (price + OI + buildup)</b>, not trade recommendation. </div>
 
 <script>
@@ -774,6 +789,35 @@ function refreshViewBox(){
   viewBox.value = view || "NO CLEAR EDGE";
 }
 
+function downloadOptionChain(){
+
+  if(!fullCSVRows || !fullCSVRows.length){
+    alert("No CSV loaded.");
+    return;
+  }
+
+  const selected = document.getElementById("symbolSelect").value;
+
+  // Convert rows back to CSV
+  const rows = fullCSVRows
+    .filter((r,i)=> i===0 || !selected || (r[0]||"").toUpperCase()===selected);
+
+  const csvContent = rows.map(r => r.join(",")).join("\n");
+
+  const blob = new Blob([csvContent], {type:"text/csv"});
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = selected 
+      ? `${selected}_OptionChain.csv`
+      : "OptionChain.csv";
+
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+
 function resetPanel(){
 
   // Reset dropdowns & inputs
@@ -789,6 +833,8 @@ function resetPanel(){
 
   // Hide WhatsApp button
   document.getElementById('waBtn').style.display = "none";
+  document.getElementById('downloadBtn').style.display = "none";
+
 
   // Clear stored analysis
   window.lastData = null;
@@ -1201,7 +1247,9 @@ document.getElementById("viewBox").value =
     : "CALL (WEAK CONTEXT)";
 
 waBtn.style.display="inline-block";
+document.getElementById("downloadBtn").style.display = "inline-block";
 }
+
 
 /* ===============================
           PUT LOGIC
@@ -1404,6 +1452,7 @@ document.getElementById("viewBox").value =
     : "PUT (WEAK CONTEXT)";
 
 waBtn.style.display = "inline-block";
+document.getElementById("downloadBtn").style.display = "inline-block";
 }
 
 /* ===============================
@@ -1613,6 +1662,7 @@ const bestView = decideBestView({
 document.getElementById("viewBox").value = bestView;
 
 waBtn.style.display = "inline-block";
+document.getElementById("downloadBtn").style.display = "inline-block";
 }
 
 
@@ -1834,6 +1884,7 @@ const bestView = decideBestView({
 document.getElementById("viewBox").value = bestView;
 
 waBtn.style.display = "inline-block";
+document.getElementById("downloadBtn").style.display = "inline-block";
 }
 
 /* ===============================
@@ -2006,6 +2057,7 @@ window.lastData = {
 document.getElementById("viewBox").value = "BULL SPREAD";
 
 waBtn.style.display = "inline-block";
+document.getElementById("downloadBtn").style.display = "inline-block";
 }
 
 /* ===============================
@@ -2178,6 +2230,7 @@ window.lastData = {
 document.getElementById("viewBox").value = "BEAR SPREAD";
 
 waBtn.style.display = "inline-block";
+document.getElementById("downloadBtn").style.display = "inline-block";
 }
 
 /* ===============================
@@ -2358,6 +2411,7 @@ window.lastData = {
 document.getElementById("viewBox").value = "IRON CONDOR";
 
 waBtn.style.display = "inline-block";
+document.getElementById("downloadBtn").style.display = "inline-block";
 }
 
 }
@@ -2892,5 +2946,4 @@ document.getElementById("expiryInput").addEventListener("change", () => {
 
 </body>
 </html>
-
 
