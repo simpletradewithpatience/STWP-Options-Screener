@@ -287,6 +287,20 @@ tr.put-row  { background:#fff2f2; }
 
 </div>
 
+<!-- AUTO STRATEGY PANEL -->
+<div id="autoStrategyBox" style="
+display:none;
+background:#ffffff;
+padding:10px 14px;
+border-left:4px solid #0d6efd;
+border-radius:8px;
+margin-top:10px;
+box-shadow:0 2px 6px rgba(0,0,0,0.08);
+font-size:13px;
+font-weight:600;
+">
+</div>
+
 <!-- OUTPUT -->
 <div id="outputBox"></div>
 <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
@@ -715,6 +729,126 @@ if(trend === "Sideways" && ivAvg > 25 && Math.abs(netDelta) < 0.10){
 return "NO CLEAR EDGE";
 }
 
+/* =====================================
+   AUTO STRUCTURE DECISION ENGINE
+===================================== */
+
+function decideAutoStructure(context){
+
+  const {
+    trend,
+    sentiment,
+    ivAvg,
+    expMovePct,
+    totalPremPct,
+    netDelta,
+    DTE
+  } = context;
+
+  if(ivAvg == null || expMovePct == null){
+    return {structure:"NO CLEAR EDGE", confidence:"Low"};
+  }
+
+  // Late expiry protection
+  if(DTE <= 1){
+    return {structure:"OBSERVE ONLY — Gamma Risk", confidence:"Low"};
+  }
+
+  // Directional bullish
+  if(sentiment === "Bullish" && trend === "Up"){
+      if(ivAvg < 22)
+        return {structure:"LONG CALL", confidence:"High"};
+
+      return {structure:"BULL CALL SPREAD", confidence:"High"};
+  }
+
+  // Directional bearish
+  if(sentiment === "Bearish" && trend === "Down"){
+      if(ivAvg < 22)
+        return {structure:"LONG PUT", confidence:"High"};
+
+      return {structure:"BEAR PUT SPREAD", confidence:"High"};
+  }
+
+  // Volatility regime
+  if(trend === "Sideways"){
+
+      if(expMovePct > totalPremPct){
+          if(ivAvg < 20)
+            return {structure:"STRADDLE", confidence:"High"};
+
+          return {structure:"STRANGLE", confidence:"Moderate"};
+      }
+
+      if(ivAvg > 25){
+        return {structure:"IRON CONDOR", confidence:"Moderate"};
+      }
+  }
+
+  return {structure:"CONDITIONAL — WAIT", confidence:"Low"};
+}
+
+/* =====================================
+   TRADEABILITY SCORE ENGINE
+===================================== */
+
+function computeTradeability({
+    edge,
+    ivAvg,
+    trend,
+    expMovePct,
+    totalPremPct,
+    DTE
+}){
+
+    let score = 0;
+
+    // EDGE (0–3)
+    if(edge >= 7) score += 3;
+    else if(edge >= 5) score += 2;
+    else score += 1;
+
+    // IV Suitability (0–2)
+    if(ivAvg >= 18 && ivAvg <= 32) score += 2;
+    else if(ivAvg < 40) score += 1;
+
+    // Regime Stability (0–2)
+    if(trend !== "Sideways") score += 2;
+    else if(expMovePct >= totalPremPct * 0.9) score += 1;
+
+    // Time Quality (0–2)
+    if(DTE >= 5 && DTE <= 25) score += 2;
+    else if(DTE > 2) score += 1;
+
+    // Premium Efficiency (0–1)
+    if(expMovePct >= totalPremPct) score += 1;
+
+    return Math.min(10, score);
+}
+
+function tradeabilityLabel(score){
+
+    if(score >= 8) return {
+        text:"Institutional Grade",
+        color:"#198754"
+    };
+
+    if(score >= 6) return {
+        text:"Tradable with Discipline",
+        color:"#fd7e14"
+    };
+
+    if(score >= 4) return {
+        text:"Conditional",
+        color:"#6c757d"
+    };
+
+    return {
+        text:"Observe Only",
+        color:"#dc3545"
+    };
+}
+
 function autoComputeViewOnSymbolSelect(symbol, spot, sentiment, trend){
 
   const callRows = getCallRows(symbol);
@@ -757,6 +891,42 @@ function autoComputeViewOnSymbolSelect(symbol, spot, sentiment, trend){
   DTE
 });
 }
+
+/* =====================================
+   AUTO STRATEGY RENDER
+===================================== */
+
+function renderAutoStrategy(structure, confidence, tradeLabel, tradeScore){
+
+  const box = document.getElementById("autoStrategyBox");
+
+  let confColor = "#6c757d";
+
+  if(confidence === "High") confColor = "#198754";
+  if(confidence === "Moderate") confColor = "#fd7e14";
+
+  box.style.display = "block";
+
+  box.innerHTML = `
+    <div style="font-size:13px;font-weight:700;">
+        Preferred Institutional Structure:
+        <span style="margin-left:6px;">${structure}</span>
+        <span style="color:${confColor};margin-left:6px;">
+            (${confidence})
+        </span>
+    </div>
+
+    <div style="
+        margin-top:6px;
+        font-size:12px;
+        font-weight:600;
+        color:${tradeLabel.color};
+    ">
+        Tradeability Score: ${tradeScore}/10 — ${tradeLabel.text}
+    </div>
+  `;
+}
+
 function refreshViewBox(){
 
   const symbol    = document.getElementById("symbolSelect").value;
@@ -779,14 +949,64 @@ function refreshViewBox(){
     return;
   }
 
-  const view = autoComputeViewOnSymbolSelect(
-    symbol,
-    spot,
-    sentiment,
-    trend
-  );
+  const callRows = getCallRows(symbol);
+const putRows  = getPutRows(symbol);
 
-  viewBox.value = view || "NO CLEAR EDGE";
+if(!callRows.length || !putRows.length){
+    viewBox.value = "";
+    return;
+}
+
+const atmCall = closestToSpot(callRows, spot);
+const atmPut  = closestToSpot(putRows, spot);
+
+const totalPremium = (atmCall.LTP || 0) + (atmPut.LTP || 0);
+const totalPremPct = (totalPremium / spot) * 100;
+
+const ivAvg = ((atmCall.IV || 0) + (atmPut.IV || 0)) / 2;
+const netDelta = (atmCall.Delta || 0) + (atmPut.Delta || 0);
+
+const expMovePct = ivAvg > 0
+  ? (ivAvg/100) * Math.sqrt(DTE/365) * 100
+  : null;
+
+const decision = decideAutoStructure({
+    trend,
+    sentiment,
+    ivAvg,
+    expMovePct,
+    totalPremPct,
+    netDelta,
+    DTE
+});
+
+// Use ATM edge as proxy
+const edgeProxy = (
+    computeEdgeScore(atmCall, atmCall.Strike) +
+    computeEdgeScore(atmPut, atmPut.Strike)
+) / 2;
+
+const tradeScore = computeTradeability({
+    edge: edgeProxy,
+    ivAvg,
+    trend,
+    expMovePct,
+    totalPremPct,
+    DTE
+});
+
+const tradeLabel = tradeabilityLabel(tradeScore);
+
+
+renderAutoStrategy(
+    decision.structure,
+    decision.confidence,
+    tradeLabel,
+    tradeScore
+);
+
+viewBox.value = decision.structure;
+
 }
 
 function downloadOptionChain(){
@@ -826,6 +1046,7 @@ function resetPanel(){
   document.getElementById('sentimentInput').value = "Bullish";
   document.getElementById('trendInput').value = "Up";
   document.getElementById('viewBox').value = "";
+  document.getElementById("autoStrategyBox").style.display = "none";
 
   // Clear output
   document.getElementById('outputBox').style.display = "none";
@@ -2480,15 +2701,13 @@ STWP View:
 • Requires directional follow-through
 
 ------------------------------------------------------------
-Note: Displayed option premiums represent a momentary market snapshot and are subject to continuous change as market conditions evolve. 
-
-DISCLAIMER: This analysis is generated strictly for educational and analytical purposes only. 
-All option structures, metrics, scores, interpretations, PCR, Max Pain levels, and volatility commentary are model-based observations derived from uploaded data. 
-This does NOT constitute investment advice, trading advice, or a recommendation to buy or sell any security or derivative instrument. 
-Options trading involves substantial risk and may not be suitable for all participants. 
-Readers are advised to exercise independent judgment and consult a SEBI-registered financial advisor before taking any trading or investment decisions. 
+Note: Displayed option premiums represent a momentary market snapshot and are subject to continuous change as market conditions evolve.   
+DISCLAIMER: This analysis is generated strictly for educational and analytical purposes only.  
+All option structures, metrics, scores, interpretations, PCR, Max Pain levels, and volatility commentary are model-based observations derived from uploaded data.  
+This does NOT constitute investment advice, trading advice, or a recommendation to buy or sell any security or derivative instrument.  
+Options trading involves substantial risk and may not be suitable for all participants.  
+Readers are advised to exercise independent judgment and consult a SEBI-registered financial advisor before taking any trading or investment decisions.  
 STWP assumes no responsibility for any financial loss arising from the use of this analysis. `;
-
 navigator.clipboard.writeText(msg);
 alert("STWP Bullish Spread WhatsApp message copied!");
 return;
@@ -2531,7 +2750,6 @@ This does NOT constitute investment advice, trading advice, or a recommendation 
 Options trading involves substantial risk and may not be suitable for all participants.  
 Readers are advised to exercise independent judgment and consult a SEBI-registered financial advisor before taking any trading or investment decisions.  
 STWP assumes no responsibility for any financial loss arising from the use of this analysis. `;
-
 navigator.clipboard.writeText(msg);
 alert("STWP Bearish Spread WhatsApp message copied!");
 return;
@@ -2575,7 +2793,6 @@ This does NOT constitute investment advice, trading advice, or a recommendation 
 Options trading involves substantial risk and may not be suitable for all participants.  
 Readers are advised to exercise independent judgment and consult a SEBI-registered financial advisor before taking any trading or investment decisions.  
 STWP assumes no responsibility for any financial loss arising from the use of this analysis. `;
-
 navigator.clipboard.writeText(msg);
 alert("STWP Iron Condor WhatsApp message copied!");
 return;
@@ -2622,7 +2839,6 @@ This does NOT constitute investment advice, trading advice, or a recommendation 
 Options trading involves substantial risk and may not be suitable for all participants.  
 Readers are advised to exercise independent judgment and consult a SEBI-registered financial advisor before taking any trading or investment decisions.  
 STWP assumes no responsibility for any financial loss arising from the use of this analysis. `;
-
 navigator.clipboard.writeText(msg);
 alert("STWP Strangle WhatsApp message copied!");
 return;
@@ -2692,6 +2908,13 @@ ${
             : "• Conditions do not favour long straddle buyers at this stage.\n• Risk-reward is unfavourable without a volatility catalyst."
 }
 
+Note: Displayed option premiums represent a momentary market snapshot and are subject to continuous change as market conditions evolve. 
+DISCLAIMER: This analysis is generated strictly for educational and analytical purposes only. 
+All option structures, metrics, scores, interpretations, PCR, Max Pain levels, and volatility commentary are model-based observations derived from uploaded data. 
+This does NOT constitute investment advice, trading advice, or a recommendation to buy or sell any security or derivative instrument. 
+Options trading involves substantial risk and may not be suitable for all participants. 
+Readers are advised to exercise independent judgment and consult a SEBI-registered financial advisor before taking any trading or investment decisions. 
+STWP assumes no responsibility for any financial loss arising from the use of this analysis.
 ------------------------------------------------------------`;
 
 navigator.clipboard.writeText(msg);
@@ -2797,7 +3020,6 @@ This does NOT constitute investment advice, trading advice, or a recommendation 
 Options trading involves substantial risk and may not be suitable for all participants.  
 Readers are advised to exercise independent judgment and consult a SEBI-registered financial advisor before taking any trading or investment decisions.  
 STWP assumes no responsibility for any financial loss arising from the use of this analysis. `;
-
 navigator.clipboard.writeText(msg);
 alert(`STWP ${d.type} WhatsApp message copied!`);
 
@@ -2975,8 +3197,4 @@ document.getElementById("expiryInput").addEventListener("change", () => {
 
 </body>
 </html>
-
-
-
-
 
